@@ -1,10 +1,21 @@
 
 import sys, os
 from capstone import *
+from elftools.elf.elffile import ELFFile
+
+program = sys.argv[1]
+
+text_section_data = None
+text_section_base = 0
+with open(program, "rb") as elf_binary:
+    elf = ELFFile(elf_binary)
+    for x in elf.iter_sections():
+        if x.name == ".text":
+            text_section_base = x.header["sh_addr"]
+    text_section = elf.get_section_by_name(".text")
+    text_section_data = text_section.data()
 
 cap = Cs(CS_ARCH_X86, CS_MODE_64)
-program = sys.argv[1]
-elf = open(program, "r").read()
 heat_logs = "heat_map_logs"
 
 class HeatHit():
@@ -39,7 +50,11 @@ for root, dirs, files in os.walk(heat_logs):
                 heat.add_result_addr(hit[1])
                 heat_hits.append(heat)
 
-for heat in hits:
-    for i in cap.disasm(elf, heat.branch_addr):
-        print("0x%x:\t%s\t%s" %(i.address, i.mnemonic, i.op_str))
+dis_ass = [x for x in cap.disasm(text_section_data, text_section_base)]
+
+for heat in heat_hits:
+    for x in dis_ass:
+        if x.address == heat.branch_addr:
+            print "0x%08x:\t%s\t%s\t%d" % (x.address, x.mnemonic, x.op_str, heat.count)
+            break
 
